@@ -4,6 +4,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { BoardStatus } from './board-status.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Board } from './board.entity';
+import { GetUser } from 'src/auth/get-user.decorator';
+import { User } from 'src/auth/user.entity';
 
 @Injectable()
 export class BoardsService {
@@ -12,8 +14,18 @@ export class BoardsService {
     private boardRepository: BoardRepository,
   ) {}
 
-  async getAllBoards(): Promise<Board[]> {
-    return this.boardRepository.find();
+  async getAllBoards(user: User): Promise<Board[]> {
+    // const query = this.boardRepository.createQueryBuilder('board');
+
+    // query.where('board.userId = :userId', { userId: user.id });
+
+    // const boards = await query.getMany();
+
+    const boards = this.boardRepository.find({
+      where: { user: { id: user.id } },
+    });
+
+    return boards;
   }
 
   async getBoardById(id: number): Promise<Board> {
@@ -26,13 +38,17 @@ export class BoardsService {
     return found;
   }
 
-  async createBoard(CreateBoardDto: CreateBoardDto): Promise<Board> {
+  async createBoard(
+    CreateBoardDto: CreateBoardDto,
+    user: User,
+  ): Promise<Board> {
     const { title, description } = CreateBoardDto;
 
     const board = this.boardRepository.create({
-      title: title,
-      description: description,
+      title,
+      description,
       status: BoardStatus.PUBLIC,
+      user,
     });
 
     await this.boardRepository.save(board);
@@ -40,8 +56,15 @@ export class BoardsService {
     return board;
   }
 
-  async deleteBoard(id: number): Promise<void> {
-    await this.boardRepository.delete(id);
+  async deleteBoard(id: number, user: User): Promise<void> {
+    const result = await this.boardRepository.delete({
+      id: id,
+      user: { id: user.id },
+    });
+
+    if (result.affected === 0) {
+      throw new NotFoundException('Board not found');
+    }
   }
 
   async updateBoardStatus(id: number, status: BoardStatus): Promise<Board> {
